@@ -1,0 +1,20 @@
+# Hand-curated legitimate brands (real data; the synthetic demo set lives in sample/).
+# - domains: the brand's official web addresses (verify each before relying on it).
+# - registered_name: legal name exactly as in the SEBI registry; the loader then fills sebi_reg_no from the
+#   real snapshot, only on an exact match. Entries without it are used for lookalike detection only.
+- {name: Zerodha, registered_name: Zerodha Broking Limited, domains: [zerodha.com]}
+- {name: Groww, registered_name: Groww Invest Tech Private Limited, domains: [groww.in]}
+- {name: Upstox, registered_name: Upstox Securities Private Limited, domains: [upstox.com]}
+- {name: Angel One, registered_name: Angel One Limited, domains: [angelone.in]}
+- {name: ICICI Direct, registered_name: ICICI Securities Limited, domains: [icicidirect.com]}
+- {name: HDFC Securities, registered_name: HDFC Securities Limited, domains: [hdfcsec.com]}
+- {name: Kotak Securities, registered_name: Kotak Securities Limited, domains: [kotaksecurities.com]}
+- {name: 5paisa, registered_name: 5paisa Capital Limited, domains: [5paisa.com]}
+- {name: Sharekhan, domains: [sharekhan.com]}
+- {name: Motilal Oswal, registered_name: Motilal Oswal Financial Services Limited, domains: [motilaloswal.com]}
+- {name: Paytm Money, domains: [paytmmoney.com]}
+- {name: Fyers, registered_name: Fyers Securities Private Limited, domains: [fyers.in]}
+- {name: Dhan, domains: [dhan.co]}
+- {name: SEBI, domains: [sebi.gov.in]}
+- {name: NSE, domains: [nseindia.com]}
+- {name: BSE, domains: [bseindia.com]}

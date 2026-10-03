@@ -9,11 +9,15 @@ import {
 } from 'lucide-react'
 import PageTransition from '../components/PageTransition'
 import { useLanguage } from '../context/LanguageContext'
+import { health } from '../lib/api'
 
 const SAMPLE_SCREENSHOTS = [
-  { id: 'telegram', label: 'Telegram VIP Tip Group', desc: '"Daily 500% profit guaranteed in Nifty 50"', tag: 'High Risk', file: 'sample_telegram_vip_calls_nifty.png (Telegram Group)' },
-  { id: 'sebi', label: 'Fake SEBI Advisor', desc: 'WhatsApp chat with forged certificate PDF', tag: 'Forged Doc', file: 'whatsapp_forged_sebi_certificate_ina99.pdf (WhatsApp)' },
-  { id: 'apk', label: 'Suspicious Trading APK', desc: 'Sideload installer prompting SMS permissions', tag: 'Malicious APK', file: 'sideload_installer_bharat_pro_trader.apk.jpg (Android)' },
+  { id: 'telegram', label: 'Telegram VIP Tip Group', desc: '"Daily 500% profit guaranteed in Nifty 50"', tag: 'High Risk', file: 'Sample: Telegram VIP tip group',
+    text: 'VIP Nifty 50 option calls. Daily 500% profit guaranteed, risk free. Limited slots, join now. Pay 4999 joining fee to vipcalls.nifty@okaxis' },
+  { id: 'sebi', label: 'Fake SEBI Advisor', desc: 'WhatsApp chat quoting a SEBI number', tag: 'Forged Doc', file: 'Sample: WhatsApp SEBI adviser chat',
+    text: 'I am Rahul Mehta, SEBI registered investment adviser INA000012345. Join my premium stock tips group, assured returns 30% monthly. Send fee to my account 9876543210' },
+  { id: 'apk', label: 'Suspicious Trading APK', desc: 'Sideload installer link', tag: 'Malicious APK', file: 'Sample: trading app APK message',
+    text: 'Download this APK to get premium SEBI registered trading signals http://bharat-pro-trader.xyz/app.apk 20% weekly returns. Act now, limited seats' },
 ]
 
 const LINK_SAMPLES = [
@@ -27,12 +31,17 @@ export default function VerifyWorkspace() {
   const { t } = useLanguage()
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'screenshot')
-  const [selectedFile, setSelectedFile] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null) // { name, size, file? , text? }
+  const [audioClip, setAudioClip] = useState(null) // { file, name, seconds }
+  const [micError, setMicError] = useState('')
+  const [backend, setBackend] = useState({ state: 'checking' })
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const audioInputRef = useRef(null)
   const [linkValue, setLinkValue] = useState('')
   const [messageValue, setMessageValue] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [recordTime, setRecordTime] = useState(0)
-  const [analyzing, setAnalyzing] = useState(false)
   const navigate = useNavigate()
   const timerRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -51,34 +60,99 @@ export default function VerifyWorkspace() {
     }
   }, [searchParams])
 
-  const handleFileSelect = useCallback((e) => {
-    const file = e.target.files?.[0]
-    if (file) setSelectedFile({ name: file.name, size: (file.size / 1024 / 1024).toFixed(1) + ' MB' })
+  useEffect(() => {
+    let alive = true
+    health().then(h => alive && setBackend({ state: 'ok', snapshot: h.sebi_snapshot }))
+      .catch(() => alive && setBackend({ state: 'down' }))
+    return () => { alive = false }
   }, [])
 
-  const selectSample = useCallback((sample) => {
-    setSelectedFile({ name: sample.file, size: '1.4 MB' })
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files?.[0]
+    if (file) setSelectedFile({ name: file.name, size: (file.size / 1024 / 1024).toFixed(1) + ' MB', file })
+    e.target.value = ''
   }, [])
+
+  // Samples are message texts (there is no real image behind them), so they are analysed as text.
+  const selectSample = useCallback((sample) => {
+    setSelectedFile({ name: sample.file, size: 'sample text', text: sample.text })
+  }, [])
+
+  const go = useCallback((job) => navigate('/analysis', { state: { job } }), [navigate])
 
   const clearFile = useCallback(() => setSelectedFile(null), [])
 
   const startAnalysis = useCallback(() => {
-    setAnalyzing(true)
-    setTimeout(() => { setAnalyzing(false); navigate('/analysis') }, 1200)
-  }, [navigate])
+    if (!selectedFile) return
+    if (selectedFile.file) go({ inputType: 'image', file: selectedFile.file })
+    else go({ inputType: 'text', text: selectedFile.text })
+  }, [selectedFile, go])
 
-  const toggleRecording = useCallback(() => {
-    if (!isRecording) {
+  const runLink = useCallback(() => {
+    const v = linkValue.trim()
+    if (!v) return
+    go({ inputType: 'url', url: /^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}` })
+  }, [linkValue, go])
+
+  const runMessage = useCallback(() => {
+    if (messageValue.trim()) go({ inputType: 'text', text: messageValue })
+  }, [messageValue, go])
+
+  const stopRecording = useCallback(() => {
+    clearInterval(timerRef.current)
+    const rec = recorderRef.current
+    if (rec && rec.state !== 'inactive') rec.stop()
+    setIsRecording(false)
+  }, [])
+
+  const startRecording = useCallback(async () => {
+    setMicError('')
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setMicError('Recording is not supported in this browser. Upload an audio clip instead.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      chunksRef.current = []
+      rec.ondataavailable = e => e.data.size && chunksRef.current.push(e.data)
+      rec.onstop = () => {
+        stream.getTracks().forEach(tr => tr.stop())
+        const type = rec.mimeType || 'audio/webm'
+        const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm'
+        const blob = new Blob(chunksRef.current, { type })
+        setAudioClip(prev => ({ file: new File([blob], `recording.${ext}`, { type }), name: `recording.${ext}`, seconds: prev?.seconds ?? 0 }))
+      }
+      recorderRef.current = rec
+      rec.start()
+      setAudioClip(null)
       setIsRecording(true)
       setRecordTime(0)
-      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000)
-    } else {
-      setIsRecording(false)
-      clearInterval(timerRef.current)
+      timerRef.current = setInterval(() => setRecordTime(t => {
+        if (t + 1 >= 30) { stopRecording(); return 30 } // backend accepts at most 30 seconds
+        return t + 1
+      }), 1000)
+    } catch {
+      setMicError('Microphone access was blocked. Allow it in your browser, or upload an audio clip instead.')
     }
-  }, [isRecording])
+  }, [stopRecording])
 
-  useEffect(() => () => clearInterval(timerRef.current), [])
+  const toggleRecording = useCallback(() => {
+    if (isRecording) stopRecording()
+    else startRecording()
+  }, [isRecording, startRecording, stopRecording])
+
+  const handleAudioUpload = useCallback((e) => {
+    const file = e.target.files?.[0]
+    if (file) setAudioClip({ file, name: file.name, seconds: 0 })
+    e.target.value = ''
+  }, [])
+
+  useEffect(() => () => {
+    clearInterval(timerRef.current)
+    const rec = recorderRef.current
+    if (rec && rec.state !== 'inactive') rec.stop()
+  }, [])
 
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
@@ -97,8 +171,12 @@ export default function VerifyWorkspace() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 'var(--radius-full)', background: 'var(--color-surface-container-lowest)', boxShadow: 'var(--shadow-card)' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-tertiary)', animation: 'pulse-ring 2s infinite' }} />
-              <span className="text-label-sm" style={{ color: 'var(--color-on-surface)' }}>{t.verifyWorkspace?.registryConnected || 'SEBI & NPCI Threat Registry: Connected'}</span>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: backend.state === 'down' ? 'var(--color-error)' : backend.state === 'ok' ? 'var(--color-tertiary)' : 'var(--color-outline)', animation: 'pulse-ring 2s infinite' }} />
+              <span className="text-label-sm" style={{ color: 'var(--color-on-surface)' }}>
+                {backend.state === 'ok'
+                  ? `SEBI registry snapshot: ${backend.snapshot || 'not loaded'}`
+                  : backend.state === 'down' ? 'Verification server unreachable' : 'Connecting to verification server…'}
+              </span>
             </div>
           </div>
         </div>
@@ -228,7 +306,7 @@ export default function VerifyWorkspace() {
                             <Image size={20} color="var(--color-primary)" />
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-on-primary-fixed)' }}>{selectedFile.name}</div>
-                              <div style={{ fontSize: 11, color: 'var(--color-primary)' }}>{selectedFile.size} • Ready for OCR Forensics</div>
+                              <div style={{ fontSize: 11, color: 'var(--color-primary)' }}>{selectedFile.size} • {selectedFile.file ? 'Ready for OCR' : 'Analysed as message text'}</div>
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -237,7 +315,7 @@ export default function VerifyWorkspace() {
                               className="btn btn-primary"
                               style={{ padding: '8px 16px', fontSize: 13, borderRadius: 'var(--radius-md)', fontWeight: 700 }}
                             >
-                              Run Deepfake & OCR Scan
+                              {selectedFile?.file ? 'Run OCR Scan' : 'Run Scan'}
                             </button>
                             <button
                               onClick={clearFile}
@@ -313,8 +391,10 @@ export default function VerifyWorkspace() {
                             />
                           </div>
                           <button
-                            onClick={() => navigate('/analysis')}
+                            onClick={runLink}
+                            disabled={!linkValue.trim()}
                             style={{
+                              opacity: linkValue.trim() ? 1 : 0.5,
                               padding: '12px 24px', borderRadius: 'var(--radius-lg)',
                               background: 'var(--color-primary)', color: 'var(--color-on-primary)',
                               fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer',
@@ -366,8 +446,10 @@ export default function VerifyWorkspace() {
                         />
                       </div>
                       <button
-                        onClick={() => navigate('/analysis')}
+                        onClick={runMessage}
+                        disabled={!messageValue.trim()}
                         style={{
+                          opacity: messageValue.trim() ? 1 : 0.5,
                           alignSelf: 'flex-end', padding: '12px 28px', borderRadius: 'var(--radius-lg)',
                           background: 'var(--color-primary)', color: 'var(--color-on-primary)',
                           fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer',
@@ -429,8 +511,10 @@ export default function VerifyWorkspace() {
                         >
                           {isRecording ? (t.verifyWorkspace?.stopRecord || 'Stop Recording') : (t.verifyWorkspace?.startRecord || 'Start Recording')}
                         </button>
+                        <input ref={audioInputRef} type="file" accept="audio/*" onChange={handleAudioUpload} style={{ display: 'none' }} />
                         <button
-                          onClick={() => navigate('/analysis')}
+                          onClick={() => audioInputRef.current?.click()}
+                          disabled={isRecording}
                           style={{
                             padding: '8px 18px', borderRadius: 'var(--radius-md)',
                             background: '#ffffff', border: '1px solid var(--color-outline-variant)',
@@ -440,6 +524,26 @@ export default function VerifyWorkspace() {
                           {t.verifyWorkspace?.uploadAudio || 'Upload Audio Clip'}
                         </button>
                       </div>
+
+                      {micError && (
+                        <p role="alert" className="text-body-sm" style={{ color: 'var(--color-error)', marginTop: 12, maxWidth: 440 }}>{micError}</p>
+                      )}
+                      {audioClip && !isRecording && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+                          <span className="text-label-md" style={{ color: 'var(--color-on-surface)' }}>{audioClip.name}</span>
+                          <button
+                            onClick={() => go({ inputType: 'audio', file: audioClip.file })}
+                            className="btn btn-primary"
+                            style={{ padding: '8px 16px', fontSize: 13, borderRadius: 'var(--radius-md)', fontWeight: 700 }}
+                          >
+                            Analyse this audio
+                          </button>
+                          <button onClick={() => setAudioClip(null)} aria-label="Remove audio"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-on-surface-variant)' }}>
+                            <X size={18} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </motion.div>
@@ -449,8 +553,8 @@ export default function VerifyWorkspace() {
             {/* Feature cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
               {[
-                { icon: QrCode, title: 'UPI Handle & VPA Sanitizer', desc: 'Verify merchant handles to confirm whether they resolve to a verified business or an untraced individual savings account.', status: 'NPCI Resolver Active', color: 'var(--color-primary)' },
-                { icon: Landmark, title: 'SEBI Registration Lookup', desc: 'Enter any claimed SEBI Registration Number to detect cloned identities and barred financial entities instantly.', status: 'SCORES API sync: 4m ago', color: 'var(--color-secondary)' },
+                { icon: QrCode, title: 'UPI Handle & VPA Check', desc: 'Paste a message containing a payment ID. We flag investment payments requested on a personal handle instead of a SEBI validated one.', status: 'Checks the SEBI validated-handle rule', color: 'var(--color-primary)' },
+                { icon: Landmark, title: 'SEBI Registration Lookup', desc: 'Paste a message with a SEBI registration number. We check it against the registry snapshot and whether the name and website match the registered holder.', status: backend.state === 'ok' ? `Registry snapshot: ${backend.snapshot || 'n/a'}` : 'Registry snapshot: unavailable', color: 'var(--color-secondary)' },
               ].map(card => (
                 <div key={card.title} style={{
                   padding: 'var(--space-lg)', borderRadius: 'var(--radius-xl)',
@@ -467,8 +571,8 @@ export default function VerifyWorkspace() {
                   </div>
                   <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--color-surface-container-high)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span className="text-label-sm" style={{ color: 'var(--color-on-surface-variant)' }}>{card.status}</span>
-                    <button onClick={() => navigate('/verify?tab=link')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: card.color, fontWeight: 700, fontSize: 13 }}>
-                      Run Lookup →
+                    <button onClick={() => setActiveTab('message')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: card.color, fontWeight: 700, fontSize: 13 }}>
+                      Check a message →
                     </button>
                   </div>
                 </div>

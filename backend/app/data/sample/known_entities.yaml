@@ -1,0 +1,23 @@
+# Hand-curated legitimate brands. Official domains are public; VERIFY each before the demo and add the
+# sebi_reg_no from the registry snapshot (left empty here rather than guessed).
+# The first block is SYNTHETIC test data matching sebi_sample.csv -- not a real firm.
+- name: Example Advisory Private Limited
+  domains: [exampleadvisory.in]
+  upi_handles: []
+  sebi_reg_no: INA000000001
+- name: Illustrative Securities Limited
+  domains: [illustrativesec.com]
+  upi_handles: []
+  sebi_reg_no: INZ000000005
+
+- {name: Zerodha, domains: [zerodha.com], upi_handles: []}
+- {name: Groww, domains: [groww.in], upi_handles: []}
+- {name: Upstox, domains: [upstox.com], upi_handles: []}
+- {name: Angel One, domains: [angelone.in], upi_handles: []}
+- {name: ICICI Direct, domains: [icicidirect.com], upi_handles: []}
+- {name: HDFC Securities, domains: [hdfcsec.com], upi_handles: []}
+- {name: Kotak Securities, domains: [kotaksecurities.com], upi_handles: []}
+- {name: 5paisa, domains: [5paisa.com], upi_handles: []}
+- {name: SEBI, domains: [sebi.gov.in], upi_handles: []}
+- {name: NSE, domains: [nseindia.com], upi_handles: []}
+- {name: BSE, domains: [bseindia.com], upi_handles: []}

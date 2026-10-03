@@ -1,0 +1,6 @@
+reg_no,category,name,status,valid_till,city
+INA000000001,INA,Example Advisory Private Limited,active,2030-12-31,Mumbai
+INA000000002,INA,Sample Wealth Advisors LLP,active,2030-06-30,Pune
+INH000000003,INH,Demo Research Services,active,2031-03-31,Bengaluru
+INH000000004,INH,Lapsed Research Analyst Co,expired,2023-03-31,Delhi
+INZ000000005,INZ,Illustrative Securities Limited,active,2032-01-31,Mumbai

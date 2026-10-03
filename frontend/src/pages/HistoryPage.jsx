@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Shield, ShieldCheck, ShieldX, ShieldAlert, Search,
@@ -7,19 +8,27 @@ import {
 } from 'lucide-react'
 import PageTransition from '../components/PageTransition'
 import { useLanguage } from '../context/LanguageContext'
+import { loadHistory, clearHistory } from '../lib/history'
 
-const HISTORY_DATA = [
-  { id: 1, typeKey: 'upi', type: 'UPI Handle', target: 'paytm-refund-support@ybl', risk: 98, statusKey: 'flagged', status: 'Flagged', date: '2 Oct 2025, 3:42 PM', riskLevel: 'critical' },
-  { id: 2, typeKey: 'telegram', type: 'Telegram Channel', target: 'XYZ Global FX Trading', risk: 94, statusKey: 'flaggedScam', status: 'Flagged Scam', date: '2 Oct 2025, 3:18 PM', riskLevel: 'high' },
-  { id: 3, typeKey: 'phishing', type: 'Phishing Link', target: 'sebi-online-kyc-verify.in', risk: 98, statusKey: 'domainBlacklisted', status: 'Domain Blacklisted', date: '2 Oct 2025, 2:30 PM', riskLevel: 'critical' },
-  { id: 4, typeKey: 'amfi', type: 'AMFI Distributor', target: 'ABC Mutual Fund Agency (ARN-88321)', risk: 10, statusKey: 'identityConfirmed', status: 'Identity Confirmed', date: '2 Oct 2025, 1:15 PM', riskLevel: 'safe' },
-  { id: 5, typeKey: 'whatsapp', type: 'WhatsApp Forward', target: 'Crypto Mining Pool - Guaranteed 200% ROI', risk: 91, statusKey: 'ponziPattern', status: 'Ponzi Pattern', date: '1 Oct 2025, 11:00 PM', riskLevel: 'high' },
-  { id: 6, typeKey: 'sms', type: 'SMS Sender', target: 'VK-SBIINB Official Alert', risk: 5, statusKey: 'legitimateBank', status: 'Legitimate Bank', date: '1 Oct 2025, 9:22 PM', riskLevel: 'safe' },
-  { id: 7, typeKey: 'apk', type: 'APK Download', target: 'bharat-pro-trader-v3.2.apk', risk: 99, statusKey: 'malwareDetected', status: 'Malware Detected', date: '1 Oct 2025, 6:45 PM', riskLevel: 'critical' },
-  { id: 8, typeKey: 'sebi', type: 'SEBI Registration', target: 'INA000012345 - Forex Advisor', risk: 87, statusKey: 'barredEntity', status: 'Barred Entity', date: '1 Oct 2025, 4:30 PM', riskLevel: 'high' },
-]
+// History is this device's own checks (localStorage), not a public list of accused parties.
+const BAND_META = {
+  LOW: { riskLevel: 'safe', statusKey: 'noIndicators' },
+  MEDIUM: { riskLevel: 'medium', statusKey: 'mediumRisk' },
+  HIGH: { riskLevel: 'high', statusKey: 'highRisk' },
+  CRITICAL: { riskLevel: 'critical', statusKey: 'criticalRisk' },
+}
+
+const toItem = (h) => ({
+  id: h.id, typeKey: h.inputType, type: ({ text: 'Message', url: 'Link', image: 'Screenshot', audio: 'Voice' })[h.inputType] || 'Check',
+  target: h.preview || h.id.slice(0, 8), risk: h.score, ...BAND_META[h.band] || BAND_META.MEDIUM,
+  status: '', date: new Date(h.ts).toLocaleString(), ts: h.ts, band: h.band,
+})
 
 const TYPE_TRANSLATIONS = {
+  text: { en: 'Message', hi: 'संदेश' },
+  url: { en: 'Link', hi: 'लिंक' },
+  image: { en: 'Screenshot', hi: 'स्क्रीनशॉट' },
+  audio: { en: 'Voice', hi: 'आवाज़' },
   upi: { en: 'UPI Handle', hi: 'यूपीआई हैंडल', mr: 'यूपीआई हँडल', bn: 'ইউপিআই হ্যান্ডেল', te: 'యూపీఐ హ్యాండిల్', ta: 'யுபிஐ கைப்பிடி', gu: 'યુપીઆઈ હેન્ડલ', kn: 'ಯುಪಿಐ ಹ್ಯಾಂಡಲ್' },
   telegram: { en: 'Telegram Channel', hi: 'टेलीग्राम चैनल', mr: 'टेलिग्राम चॅनेल', bn: 'টেলিগ্রাম চ্যানেল', te: 'టెలిగ్రామ్ ఛానల్', ta: 'டெலிகிராம் சேனல்', gu: 'ટેલિગ્રામ ચેનલ', kn: 'ಟೆಲಿಗ್ರಾಂ ಚಾನಲ್' },
   phishing: { en: 'Phishing Link', hi: 'फ़िशिंग लिंक', mr: 'फिशिंग लिंक', bn: 'ফিশিং লিঙ্ক', te: 'ఫిషింగ్ లింక్', ta: 'ஃபிஷிங் இணைப்பு', gu: 'ફિશિંગ લિંક', kn: 'ಫಿಶಿಂಗ್ ಲಿಂಕ್' },
@@ -31,6 +40,10 @@ const TYPE_TRANSLATIONS = {
 }
 
 const STATUS_TRANSLATIONS = {
+  noIndicators: { en: 'No indicators found', hi: 'कोई संकेत नहीं मिला' },
+  mediumRisk: { en: 'Medium risk', hi: 'मध्यम जोखिम' },
+  highRisk: { en: 'High risk', hi: 'उच्च जोखिम' },
+  criticalRisk: { en: 'Critical risk', hi: 'अत्यधिक जोखिम' },
   flagged: { en: 'Flagged', hi: 'चिह्नित', mr: 'फ्लॅग केलेले', bn: 'পতাকাকৃত', te: 'ఫ్లాగ్ చేయబడింది', ta: 'கொடியிடப்பட்டது', gu: 'ફ્લેગ કરેલ', kn: 'ಫ್ಲ್ಯಾಗ್ ಮಾಡಲಾಗಿದೆ' },
   flaggedScam: { en: 'Flagged Scam', hi: 'घोटाला चिह्नित', mr: 'घोटाळा घोषित', bn: 'প্রতারণা চিহ্নিত', te: 'మోసంగా గుర్తించబడింది', ta: 'மோசடி கொடியிடப்பட்டது', gu: 'કૌભાંડ ચિહ્નિત', kn: 'ವಂಚನೆ ಎಂದು ಗುರುತಿಸಲಾಗಿದೆ' },
   domainBlacklisted: { en: 'Domain Blacklisted', hi: 'डोमेन ब्लॉक', mr: 'डोमेन प्रतिबंधित', bn: 'ডোমেন নিষিদ্ধ', te: 'డొమైన్ బ్లాక్‌లిస్ట్ చేయబడింది', ta: 'டொமைன் தடைசெய்யப்பட்டது', gu: 'ડોમેન બ્લેકલિસ્ટ', kn: 'ಡೊಮೇನ್ ಕಪ್ಪುಪಟ್ಟಿಗೆ ಸೇರಿಸಲಾಗಿದೆ' },
@@ -44,6 +57,7 @@ const STATUS_TRANSLATIONS = {
 const getRiskBadge = (level) => {
   const config = {
     critical: { bg: 'var(--color-error)', color: 'var(--color-on-error)', icon: CircleAlert },
+    medium: { bg: 'var(--risk-caution-bg)', color: 'var(--risk-caution-text)', icon: AlertTriangle },
     high: { bg: 'var(--color-error-container)', color: 'var(--color-on-error-container)', icon: AlertTriangle },
     safe: { bg: 'var(--color-tertiary-fixed)', color: 'var(--color-on-tertiary-fixed)', icon: CheckCircle },
   }
@@ -55,15 +69,20 @@ export default function HistoryPage() {
   const lang = currentLang || 'en'
   const [filter, setFilter] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
+  const navigate = useNavigate()
+  const [items, setItems] = useState(() => loadHistory().map(toItem))
+  const L = (en, hi, key) => (lang === 'en' ? en : lang === 'hi' ? hi : (t.history?.[key] || en))
 
   const filters = [
     { key: 'All', label: t.history?.filterAll || 'All' },
     { key: 'Critical', label: t.history?.filterCritical || 'Critical' },
     { key: 'High Risk', label: t.history?.filterHigh || 'High Risk' },
-    { key: 'Safe', label: t.history?.filterSafe || 'Safe' },
+    { key: 'Medium', label: L('Medium', 'मध्यम', 'filterMedium') },
+    { key: 'Safe', label: L('No indicators', 'कोई संकेत नहीं', 'filterSafe') },
   ]
 
-  const filtered = HISTORY_DATA.filter(item => {
+  const filtered = items.filter(item => {
+    if (filter === 'Medium') return item.riskLevel === 'medium'
     if (filter === 'Critical') return item.riskLevel === 'critical'
     if (filter === 'High Risk') return item.riskLevel === 'high'
     if (filter === 'Safe') return item.riskLevel === 'safe'
@@ -81,7 +100,7 @@ export default function HistoryPage() {
   const handleExportCsv = () => {
     const csvContent = "data:text/csv;charset=utf-8," 
       + "ID,Type,Target,Risk Score,Status,Date\n"
-      + HISTORY_DATA.map(e => `${e.id},${e.type},"${e.target}",${e.risk},${e.status},"${e.date}"`).join("\n");
+      + items.map(e => `${e.id},${e.type},"${e.target.replace(/"/g, '""')}",${e.risk},${e.band},"${e.date}"`).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -107,9 +126,18 @@ export default function HistoryPage() {
               {t.history?.title || 'Verification History'}
             </h1>
             <p className="text-body-md" style={{ color: 'var(--color-on-surface-variant)', marginTop: 4 }}>
-              {t.history?.desc || 'Complete record of all scam checks, identity verifications, and threat assessments performed.'}
+              {lang === 'hi' ? 'इस डिवाइस पर की गई आपकी जाँचें। यह सूची केवल आपके ब्राउज़र में सहेजी जाती है।' : 'Your checks on this device. This list is stored only in your browser.'}
             </p>
           </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+          {items.length > 0 && (
+            <button
+              onClick={() => { clearHistory(); setItems([]) }}
+              style={{ padding: '10px 16px', borderRadius: 'var(--radius-lg)', background: 'transparent', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: 13, border: '1px solid var(--color-outline-variant)', cursor: 'pointer' }}
+            >
+              {L('Clear history', 'इतिहास मिटाएँ', 'clear')}
+            </button>
+          )}
           <button
             onClick={handleExportCsv}
             style={{
@@ -123,15 +151,16 @@ export default function HistoryPage() {
             <Download size={16} />
             <span>{t.history?.exportCsv || 'Export CSV'}</span>
           </button>
+          </div>
         </div>
 
         {/* Summary Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
           {[
-            { label: t.history?.totalScans || 'Total Scans', value: '1,429,812', icon: Shield, color: 'var(--color-primary)' },
-            { label: t.history?.threatsBlocked || 'Threats Blocked', value: '320,184', icon: ShieldX, color: 'var(--color-error)' },
-            { label: t.history?.verifiedSafe || 'Verified Safe', value: '1,109,628', icon: ShieldCheck, color: 'var(--color-tertiary)' },
-            { label: t.history?.avgRiskScore || 'Avg Risk Score', value: '67.3', icon: ShieldAlert, color: 'var(--color-secondary)' },
+            { label: L('Checks on this device', 'इस डिवाइस पर जाँचें', 'totalScans'), value: String(items.length), icon: Shield, color: 'var(--color-primary)' },
+            { label: L('High / critical', 'उच्च / अत्यधिक', 'threatsBlocked'), value: String(items.filter(i => i.riskLevel === 'high' || i.riskLevel === 'critical').length), icon: ShieldX, color: 'var(--color-error)' },
+            { label: L('No indicators found', 'कोई संकेत नहीं मिला', 'verifiedSafe'), value: String(items.filter(i => i.riskLevel === 'safe').length), icon: ShieldCheck, color: 'var(--color-tertiary)' },
+            { label: t.history?.avgRiskScore || 'Avg Risk Score', value: items.length ? (items.reduce((a, i) => a + i.risk, 0) / items.length).toFixed(1) : '—', icon: ShieldAlert, color: 'var(--color-secondary)' },
           ].map(card => (
             <motion.div
               key={card.label}
@@ -233,7 +262,7 @@ export default function HistoryPage() {
                 const badge = getRiskBadge(item.riskLevel)
                 const BadgeIcon = badge.icon
                 const localizedType = (TYPE_TRANSLATIONS[item.typeKey] && TYPE_TRANSLATIONS[item.typeKey][lang]) || item.type
-                const localizedStatus = (STATUS_TRANSLATIONS[item.statusKey] && STATUS_TRANSLATIONS[item.statusKey][lang]) || item.status
+                const localizedStatus = (STATUS_TRANSLATIONS[item.statusKey] && (STATUS_TRANSLATIONS[item.statusKey][lang] || STATUS_TRANSLATIONS[item.statusKey].en)) || item.status
 
                 return (
                   <motion.div
@@ -248,6 +277,7 @@ export default function HistoryPage() {
                       alignItems: 'center', transition: 'background 0.15s', cursor: 'pointer',
                     }}
                     className="table-row"
+                    onClick={() => navigate(`/analysis?scan=${item.id}`)}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
@@ -289,7 +319,9 @@ export default function HistoryPage() {
           {filtered.length === 0 && (
             <div style={{ padding: 'var(--space-xl)', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>
               <Search size={32} style={{ opacity: 0.3, margin: '0 auto 8px' }} />
-              <p className="text-body-md">{t.history?.noResults || 'No results found for your search criteria.'}</p>
+              <p className="text-body-md">{items.length === 0
+                ? L('No checks yet. Run one from the Verify page.', 'अभी कोई जाँच नहीं। सत्यापन पेज से जाँच करें।', 'noResults')
+                : (t.history?.noResults || 'No results found for your search criteria.')}</p>
             </div>
           )}
         </div>

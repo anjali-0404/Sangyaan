@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.db
+.pytest_cache/
+app/data/openphish.txt
+app/data/sebi_full.csv
+tests/evaluation.json
+app/data/urlhaus.txt
