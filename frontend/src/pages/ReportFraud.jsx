@@ -105,6 +105,7 @@ export default function ReportFraud() {
   const [submitting, setSubmitting] = useState(false)
   const [submittedRef, setSubmittedRef] = useState(null)
   const [uploadedFiles, setUploadedFiles] = useState([])
+  const [actionAlert, setActionAlert] = useState(null)
   const fileInputRef = useRef(null)
 
   // Form State
@@ -927,44 +928,181 @@ National Cyber Crime Helpline: 1930 | Portal: https://cybercrime.gov.in`
                 <div style={{ marginTop: 8, color: '#fcd34d' }}>Evidence Attachments: {uploadedFiles.length} file(s) indexed with SHA-256 fingerprinting.</div>
               </div>
 
+              {/* Action Trigger Banner */}
+              {actionAlert && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    padding: '12px 18px',
+                    borderRadius: 'var(--radius-md)',
+                    background: actionAlert.type === 'call' ? '#fef3c7' : '#dcfce7',
+                    border: `1.5px solid ${actionAlert.type === 'call' ? '#f59e0b' : '#16a34a'}`,
+                    color: actionAlert.type === 'call' ? '#92400e' : '#166534',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    marginBottom: 'var(--space-md)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {actionAlert.type === 'call' ? <Phone size={18} /> : <Check size={18} />}
+                    <span>{actionAlert.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionAlert(null)}
+                    style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, fontSize: 16 }}
+                  >
+                    ✕
+                  </button>
+                </motion.div>
+              )}
+
               {/* Action Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-md)', marginBottom: 'var(--space-xl)' }}>
-                <div style={{ padding: 'var(--space-md)', border: '1px solid var(--color-outline-variant)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Phone size={18} color="var(--color-primary)" />
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>
-                      {t.report?.call1930Action || '1. Call 1930 & Quote UTR'}
+                {/* 1. Call 1930 & Quote UTR */}
+                <a
+                  href="tel:1930"
+                  onClick={() => {
+                    if (formData.utrNumber) {
+                      try { navigator.clipboard.writeText(formData.utrNumber) } catch { /* ignore */ }
+                    }
+                    setActionAlert({
+                      type: 'call',
+                      message: `Initiating call to 1930 (National Cyber Crime Helpline)... ${formData.utrNumber ? `Your UTR "${formData.utrNumber}" is copied to clipboard!` : 'Quote your transaction details to the helpline officer.'}`
+                    })
+                  }}
+                  style={{
+                    padding: 'var(--space-md)',
+                    border: '1.5px solid var(--color-primary)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(0, 55, 177, 0.03)',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    display: 'block',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(0, 55, 177, 0.08)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 55, 177, 0.07)'
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 55, 177, 0.15)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 55, 177, 0.03)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 55, 177, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Phone size={18} color="var(--color-primary)" />
+                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-on-surface)' }}>
+                        {t.report?.call1930Action || '1. Call 1930 & Quote UTR'}
+                      </span>
+                    </div>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '3px 10px',
+                      background: '#f59e0b',
+                      color: '#0b132b',
+                      borderRadius: 9999,
+                      letterSpacing: '0.02em'
+                    }}>
+                      Dial 1930 📞
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: 0 }}>
+                  <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: '0 0 10px' }}>
                     Provide the 12-digit UPI UTR or bank reference to the operator so they can raise a lien on the recipient bank account.
                   </p>
-                </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>
+                    <span>Click to dial immediately</span>
+                    {formData.utrNumber && <span>• UTR: {formData.utrNumber}</span>}
+                  </div>
+                </a>
 
-                <div style={{ padding: 'var(--space-md)', border: '1px solid var(--color-outline-variant)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <ExternalLink size={18} color="var(--color-primary)" />
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>
-                      {t.report?.pastePortalAction || '2. Paste into cybercrime.gov.in'}
+                {/* 2. Paste into cybercrime.gov.in */}
+                <a
+                  href="https://cybercrime.gov.in"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    copyDossier()
+                    setActionAlert({
+                      type: 'portal',
+                      message: 'Evidence dossier copied to clipboard! Opening official cybercrime.gov.in portal in a new tab...'
+                    })
+                  }}
+                  style={{
+                    padding: 'var(--space-md)',
+                    border: '1.5px solid var(--risk-safe-text)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(22, 163, 74, 0.03)',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    display: 'block',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(22, 163, 74, 0.08)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(22, 163, 74, 0.07)'
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(22, 163, 74, 0.15)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(22, 163, 74, 0.03)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(22, 163, 74, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ExternalLink size={18} color="var(--risk-safe-text)" />
+                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-on-surface)' }}>
+                        {t.report?.pastePortalAction || '2. Paste into cybercrime.gov.in'}
+                      </span>
+                    </div>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '3px 10px',
+                      background: 'var(--risk-safe-text)',
+                      color: '#ffffff',
+                      borderRadius: 9999,
+                      letterSpacing: '0.02em'
+                    }}>
+                      Copy & Open Portal ↗
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: 0 }}>
+                  <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: '0 0 10px' }}>
                     Use the copied dossier summary directly in the National Cyber Crime Reporting Portal's Citizen Complaint filing form.
                   </p>
-                </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--risk-safe-text)', fontWeight: 600 }}>
+                    <Copy size={13} /> Copies dossier automatically on click
+                  </div>
+                </a>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+              {/* Bottom Navigation Actions */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-md)', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => {
                     setStep(1)
                     setSubmittedRef(null)
+                    setActionAlert(null)
                   }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                 >
-                  <RefreshCw size={16} /> {t.report?.newReport || 'File Another Report'}
+                  <RefreshCw size={16} /> {t.report?.newReport || 'Report Another Incident'}
                 </button>
                 <a
                   href="https://cybercrime.gov.in"
@@ -973,7 +1111,7 @@ National Cyber Crime Helpline: 1930 | Portal: https://cybercrime.gov.in`
                   className="btn btn-primary"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
                 >
-                  {t.report?.officialPortal || 'Proceed to cybercrime.gov.in'} <ExternalLink size={16} />
+                  {t.report?.officialPortal || 'Official Portal (MHA)'} <ExternalLink size={16} />
                 </a>
               </div>
             </motion.div>
