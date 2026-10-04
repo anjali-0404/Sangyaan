@@ -5,12 +5,15 @@ import {
   Shield, Phone, Globe, ChevronDown, Menu, X,
   Languages, Check, User, AlertTriangle, ExternalLink,
   ShieldAlert, Bell, LogOut, Copy, FileText, ArrowRight,
-  ShieldCheck, Lock, Smartphone, CheckCircle2
+  ShieldCheck, Lock, Smartphone, CheckCircle2, RefreshCw
 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
+import { useAuth } from '../context/AuthContext'
+import GoogleAuthModal from './GoogleAuthModal'
 
 export default function Header() {
   const { currentLang, setLanguage, t, languages } = useLanguage()
+  const { user, isAuthenticated, logout, openGoogleModal, authNotification } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   
@@ -40,6 +43,13 @@ export default function Header() {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3000)
   }
+
+  // Display auth notification
+  useEffect(() => {
+    if (authNotification) {
+      showToast(authNotification)
+    }
+  }, [authNotification])
 
   // Scroll listener
   useEffect(() => {
@@ -287,174 +297,231 @@ export default function Header() {
               <span>1930</span>
             </button>
 
-            {/* 3. PROFILE BUTTON & DROPDOWN */}
-            <div ref={profileRef} style={{ position: 'relative' }}>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setProfileOpen(prev => !prev)}
-                className="profile-section"
-                aria-expanded={profileOpen}
-                aria-label="User Profile"
+            {/* 3. PROFILE BUTTON & DROPDOWN / GOOGLE AUTH BUTTON */}
+            {isAuthenticated && user ? (
+              <div ref={profileRef} style={{ position: 'relative' }}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setProfileOpen(prev => !prev)}
+                  className="profile-section"
+                  aria-expanded={profileOpen}
+                  aria-label="User Profile"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '3px 6px', borderRadius: 'var(--radius-full)',
+                    cursor: 'pointer',
+                    background: profileOpen ? 'var(--color-surface-container-high)' : 'transparent',
+                    transition: 'background 0.2s',
+                    userSelect: 'none'
+                  }}
+                >
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: user.avatarColor || 'linear-gradient(135deg, #1f4fd8, #4e5b93)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#ffffff', fontWeight: 700, fontSize: 12,
+                    boxShadow: '0 2px 6px rgba(15, 31, 84, 0.2)',
+                    position: 'relative',
+                    flexShrink: 0
+                  }}>
+                    {user.initials || 'G'}
+                    <span style={{
+                      position: 'absolute', bottom: -1, right: -1,
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: '#16a34a', border: '2px solid #ffffff'
+                    }} />
+                  </div>
+                  <span className="text-label-md profile-name" style={{ color: 'var(--color-on-surface)', fontWeight: 600, fontSize: 13 }}>
+                    {user.name}
+                  </span>
+                  <ChevronDown size={14} className="profile-chevron" style={{ color: 'var(--color-on-surface-variant)', transform: profileOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </div>
+
+                <AnimatePresence>
+                  {profileOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 8px)',
+                        right: 0,
+                        width: 295,
+                        background: '#ffffff',
+                        borderRadius: 'var(--radius-xl)',
+                        boxShadow: '0 16px 36px rgba(15, 31, 84, 0.18)',
+                        border: '1px solid var(--color-outline-variant)',
+                        padding: 'var(--space-md)',
+                        zIndex: 110,
+                      }}
+                    >
+                      {/* User Card */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--color-surface-container-high)' }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: '50%',
+                          background: user.avatarColor || 'linear-gradient(135deg, #1f4fd8, #0f1f54)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: '#ffffff', fontWeight: 700, fontSize: 16,
+                          flexShrink: 0
+                        }}>
+                          {user.initials || 'G'}
+                        </div>
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {user.name}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--color-on-surface-variant)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {user.email}
+                          </div>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 6px', background: 'var(--risk-safe-bg)', borderRadius: 9999 }}>
+                            <ShieldCheck size={11} color="var(--risk-safe-text)" />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--risk-safe-text)' }}>
+                              Aadhaar & DigiLocker Verified
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Profile Nav Items */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderBottom: '1px solid var(--color-surface-container-high)' }}>
+                        <div
+                          onClick={() => {
+                            setProfileOpen(false)
+                            navigate('/history')
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                            borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13,
+                            color: 'var(--color-on-surface)', fontWeight: 500, transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <FileText size={16} color="var(--color-primary)" />
+                          <span>My Verification History</span>
+                        </div>
+
+                        <div
+                          onClick={() => {
+                            setProfileOpen(false)
+                            navigate('/report')
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                            borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13,
+                            color: 'var(--color-on-surface)', fontWeight: 500, transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <ShieldAlert size={16} color="var(--color-error)" />
+                          <span>Reported Frauds & FIR Drafts</span>
+                        </div>
+
+                        <div
+                          onClick={() => {
+                            setAlertsEnabled(p => !p)
+                            showToast(`Threat Alerts ${!alertsEnabled ? 'Enabled' : 'Disabled'}`)
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px',
+                            borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13,
+                            color: 'var(--color-on-surface)', fontWeight: 500, transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Bell size={16} color="var(--color-secondary)" />
+                            <span>SMS & UPI Alert Push</span>
+                          </div>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 9999,
+                            background: alertsEnabled ? 'var(--risk-safe-bg)' : 'var(--color-surface-container-high)',
+                            color: alertsEnabled ? 'var(--risk-safe-text)' : 'var(--color-outline)'
+                          }}>
+                            {alertsEnabled ? 'ON' : 'OFF'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Switch Account */}
+                      <div
+                        onClick={() => {
+                          setProfileOpen(false)
+                          openGoogleModal()
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                          marginTop: 4, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                          fontSize: 13, color: 'var(--color-primary)', fontWeight: 600, transition: 'background 0.15s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-primary-fixed)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <RefreshCw size={15} />
+                        <span>Switch Google Account</span>
+                      </div>
+
+                      {/* Sign out */}
+                      <div
+                        onClick={() => {
+                          setProfileOpen(false)
+                          logout()
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                          marginTop: 4, borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                          fontSize: 13, color: '#b91c1c', fontWeight: 600, transition: 'all 0.15s',
+                          background: '#fee2e2', border: '1px solid #fecaca'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#fca5a5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#fee2e2'}
+                      >
+                        <LogOut size={16} color="#b91c1c" />
+                        <span>{t.nav?.signOut || 'Sign Out / Switch Identity'}</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              /* LOGGED OUT STATE -> GOOGLE SIGN IN BUTTON */
+              <button
+                type="button"
+                onClick={openGoogleModal}
+                className="google-sign-in-btn"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '3px 6px', borderRadius: 'var(--radius-full)',
-                  cursor: 'pointer',
-                  background: profileOpen ? 'var(--color-surface-container-high)' : 'transparent',
-                  transition: 'background 0.2s',
-                  userSelect: 'none'
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '7px 14px', borderRadius: 'var(--radius-full)',
+                  background: '#ffffff', color: '#3c4043',
+                  border: '1px solid #dadce0',
+                  boxShadow: '0 1px 3px rgba(60,64,67,0.15)',
+                  cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(60,64,67,0.25)'
+                  e.currentTarget.style.background = '#f8f9fa'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(60,64,67,0.15)'
+                  e.currentTarget.style.background = '#ffffff'
                 }}
               >
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #1f4fd8, #4e5b93)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#ffffff', fontWeight: 700, fontSize: 12,
-                  boxShadow: '0 2px 6px rgba(15, 31, 84, 0.2)',
-                  position: 'relative',
-                  flexShrink: 0
-                }}>
-                  RK
-                  <span style={{
-                    position: 'absolute', bottom: -1, right: -1,
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: '#16a34a', border: '2px solid #ffffff'
-                  }} />
-                </div>
-                <span className="text-label-md profile-name" style={{ color: 'var(--color-on-surface)', fontWeight: 600, fontSize: 13 }}>
-                  Rajesh K.
-                </span>
-                <ChevronDown size={14} className="profile-chevron" style={{ color: 'var(--color-on-surface-variant)', transform: profileOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-              </div>
-
-              <AnimatePresence>
-                {profileOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
-                      width: 290,
-                      background: '#ffffff',
-                      borderRadius: 'var(--radius-xl)',
-                      boxShadow: '0 16px 36px rgba(15, 31, 84, 0.18)',
-                      border: '1px solid var(--color-outline-variant)',
-                      padding: 'var(--space-md)',
-                      zIndex: 110,
-                    }}
-                  >
-                    {/* User Card */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--color-surface-container-high)' }}>
-                      <div style={{
-                        width: 44, height: 44, borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #1f4fd8, #0f1f54)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#ffffff', fontWeight: 700, fontSize: 16
-                      }}>
-                        RK
-                      </div>
-                      <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          Rajesh Kumar
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--color-on-surface-variant)' }}>
-                          rajesh.k@nic.in
-                        </div>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 6px', background: 'var(--risk-safe-bg)', borderRadius: 9999 }}>
-                          <ShieldCheck size={11} color="var(--risk-safe-text)" />
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--risk-safe-text)' }}>Aadhaar & DigiLocker Verified</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick Profile Nav Items */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderBottom: '1px solid var(--color-surface-container-high)' }}>
-                      <div
-                        onClick={() => {
-                          setProfileOpen(false)
-                          navigate('/history')
-                        }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                          borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13,
-                          color: 'var(--color-on-surface)', fontWeight: 500, transition: 'background 0.15s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <FileText size={16} color="var(--color-primary)" />
-                        <span>My Verification History</span>
-                      </div>
-
-                      <div
-                        onClick={() => {
-                          setProfileOpen(false)
-                          navigate('/report')
-                        }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                          borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13,
-                          color: 'var(--color-on-surface)', fontWeight: 500, transition: 'background 0.15s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <ShieldAlert size={16} color="var(--color-error)" />
-                        <span>Reported Frauds & FIR Drafts</span>
-                      </div>
-
-                      <div
-                        onClick={() => {
-                          setAlertsEnabled(p => !p)
-                          showToast(`Threat Alerts ${!alertsEnabled ? 'Enabled' : 'Disabled'}`)
-                        }}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px',
-                          borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13,
-                          color: 'var(--color-on-surface)', fontWeight: 500, transition: 'background 0.15s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-container-low)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <Bell size={16} color="var(--color-secondary)" />
-                          <span>SMS & UPI Alert Push</span>
-                        </div>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 9999,
-                          background: alertsEnabled ? 'var(--risk-safe-bg)' : 'var(--color-surface-container-high)',
-                          color: alertsEnabled ? 'var(--risk-safe-text)' : 'var(--color-outline)'
-                        }}>
-                          {alertsEnabled ? 'ON' : 'OFF'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Sign out */}
-                    <div
-                      onClick={() => {
-                        setProfileOpen(false)
-                        showToast('Logged out of verified session')
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                        marginTop: 4, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                        fontSize: 13, color: 'var(--color-error)', fontWeight: 600, transition: 'background 0.15s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--risk-danger-bg)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <LogOut size={16} />
-                      <span>Sign Out / Switch Identity</span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                <svg width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.9c2.28-2.1 3.64-5.2 3.64-9.15z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.9-3.05c-1.08.72-2.45 1.16-4.03 1.16-3.1 0-5.74-2.1-6.68-4.93H1.21v3.15C3.25 21.43 7.31 24 12 24z" />
+                  <path fill="#FBBC05" d="M5.32 14.27c-.24-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.21C.44 8.12 0 9.99 0 12s.44 3.88 1.21 5.42l4.11-3.15z" />
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.57 1.21 6.58l4.11 3.15c.94-2.83 3.58-4.98 6.68-4.98z" />
+                </svg>
+                <span>Sign in with Google</span>
+              </button>
+            )}
 
             {/* Mobile menu toggle */}
             <button
@@ -721,49 +788,108 @@ export default function Header() {
               display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)',
             }}
           >
-            {/* Mobile User Card */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', background: 'var(--color-surface-container-low)',
-              borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 38, height: 38, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #1f4fd8, #0f1f54)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#ffffff', fontWeight: 700, fontSize: 14
-                }}>
-                  RK
+            {/* Mobile User Card / Google Sign In */}
+            {isAuthenticated && user ? (
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 10,
+                padding: '12px 14px', background: 'var(--color-surface-container-low)',
+                borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {user.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: 40, height: 40, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #1f4fd8, #0f1f54)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#ffffff', fontWeight: 700, fontSize: 14
+                      }}>
+                        {user.initials || 'U'}
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-on-surface)' }}>{user.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-on-surface-variant)' }}>{user.email}</div>
+                    </div>
+                  </div>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: '#e8f5e9', color: '#2e7d32',
+                    padding: '2px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 700
+                  }}>
+                    <CheckCircle2 size={11} /> Verified
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-on-surface)' }}>Rajesh Kumar</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-on-surface-variant)' }}>rajesh.k@nic.in • Verified</div>
+
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false)
+                      navigate('/history')
+                    }}
+                    className="btn btn-secondary"
+                    style={{ flex: 1, padding: '7px 10px', fontSize: 12, borderRadius: 'var(--radius-sm)', justifyContent: 'center' }}
+                  >
+                    History
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false)
+                      navigate('/report')
+                    }}
+                    className="btn btn-primary"
+                    style={{ flex: 1, padding: '7px 10px', fontSize: 12, borderRadius: 'var(--radius-sm)', justifyContent: 'center' }}
+                  >
+                    Reports
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false)
+                      logout()
+                    }}
+                    style={{
+                      padding: '7px 12px', fontSize: 12, borderRadius: 'var(--radius-sm)',
+                      background: '#fee2e2', border: '1px solid #fecaca', color: '#b91c1c',
+                      fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                    }}
+                  >
+                    <LogOut size={14} />
+                    <span>Sign Out</span>
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  onClick={() => {
-                    setMobileOpen(false)
-                    navigate('/history')
-                  }}
-                  className="btn btn-secondary"
-                  style={{ padding: '6px 10px', fontSize: 11, borderRadius: 'var(--radius-sm)' }}
-                >
-                  History
-                </button>
-                <button
-                  onClick={() => {
-                    setMobileOpen(false)
-                    navigate('/report')
-                  }}
-                  className="btn btn-primary"
-                  style={{ padding: '6px 10px', fontSize: 11, borderRadius: 'var(--radius-sm)' }}
-                >
-                  Reports
-                </button>
-              </div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false)
+                  openGoogleModal()
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                  background: '#ffffff', color: '#3c4043',
+                  border: '1px solid #dadce0',
+                  boxShadow: '0 1px 3px rgba(60,64,67,0.15)',
+                  cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                  width: '100%'
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.9c2.28-2.1 3.64-5.2 3.64-9.15z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.9-3.05c-1.08.72-2.45 1.16-4.03 1.16-3.1 0-5.74-2.1-6.68-4.93H1.21v3.15C3.25 21.43 7.31 24 12 24z" />
+                  <path fill="#FBBC05" d="M5.32 14.27c-.24-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.21C.44 8.12 0 9.99 0 12s.44 3.88 1.21 5.42l4.11-3.15z" />
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.57 1.21 6.58l4.11 3.15c.94-2.83 3.58-4.98 6.68-4.98z" />
+                </svg>
+                <span>Sign in with Google</span>
+              </button>
+            )}
 
             {/* Mobile Nav Links */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '8px 0' }}>
@@ -836,6 +962,9 @@ export default function Header() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* 6. GOOGLE AUTHENTICATION MODAL */}
+      <GoogleAuthModal />
 
       <style>{`
         .desktop-nav { display: flex !important; }
